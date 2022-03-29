@@ -43,7 +43,6 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     // Contract Interfaces
     //...
 
-    FarmWrapper targetFarm;
     uint256 farmPid;
     address weth;
 
@@ -76,6 +75,18 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         profitFactor = 1500;
         debtThreshold = 1_000_000 * 1e18;
     }
+
+    function _getPendingFarmRewards() internal virtual view returns (uint256);
+
+    function _harvestFarmRewards() internal virtual;
+
+    function _withdrawFromFarm() internal virtual;
+
+    function _depositFromFarm() internal virtual;
+
+
+
+    
 
 
 }
