@@ -1,23 +1,30 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.1;
+pragma solidity 0.8.13;
 
-
-import "./BaseStrategy.sol";
-import "./HedgehogCoreStrategyConfig.sol";
-import "./HedgehogCoreStrategy.sol";
-import "./TshareFarm.sol";
-
-contract HedgehogMAITOMBStrategy is HedgehogCoreStrategy {
-    constructor(address _vault) public
-        HedgehogCoreStrategy(
+contract MAITOMBTshareStrategy is HedgehogCoreStrategy {
+    constructor(address _vault)
+        public
+        CoreStrategy(
             _vault,
-            HedgehogCoreStrategyConfig(
-               //TODO
+            CoreStrategyConfig(
+                0xfB98B335551a418cD0737375a2ea0ded62Ea213b, // want
+                0x6c021Ae822BEa943b2E66552bDe1D2696a53fbB7, // short
+                0x45f4682B560d4e3B8FF1F1b3A38FDBe775C7177b, // wantShortLP
+                0x4cdF39285D7Ca8eB3f090fDA0C069ba5F4145B37, // farmToken -> Tshare
+                , // farmTokenLp
+                0xcc0a87f7e7c693042a9cc703661f5060c80acb43, // farmMasterChef
+                2, // farmPid -> 2 for MAI/TOMB
+                , // cTokenLend
+                , // cTokenBorrow
+                , // compToken
+                , // compTokenLP
+                , // comptroller
+                 // router
             )
         )
     {
-        // create a default oracle and set it //TODO
+        // create a default oracle and set it
         oracle = new ScreamPriceOracle(
             address(comptroller),
             address(cTokenLend),
@@ -25,26 +32,26 @@ contract HedgehogMAITOMBStrategy is HedgehogCoreStrategy {
         );
     }
 
-    function _getPendingFarmRewards()
+    function _farmPendingRewards(uint256 _pid, address _user)
         internal
         view
         override
         returns (uint256)
     {
-        return LqdrFarm(address(farm)).pendingLqdr(_pid, _user);
+        return TombFinanceFarm(address(farm)).pendingTShare(_pid, _user);
     }
 
-    function _depoistLp() internal override {
+    function _depositAllLpInFarm() internal override {
         uint256 lpBalance = wantShortLP.balanceOf(address(this));
-        LqdrFarm(address(farm)).deposit(farmPid, lpBalance, address(this));
+        TombFinanceFarm(address(farm)).deposit(farmPid, lpBalance);
     }
 
-    function _withdrawFarm(uint256 _amount) internal override {
-        LqdrFarm(address(farm)).withdraw(farmPid, _amount, address(this));
+    function _withdrawAmountFromFarm(uint256 _amount) internal override {
+        TombFinanceFarm(address(farm)).withdraw(farmPid, _amount);
     }
 
     function claimHarvest() internal override {
-        LqdrFarm(address(farm)).harvest(farmPid, address(this));
+        _withdrawFarm(0); // Tomb does not have an harvest function, so we need to do a withdraw of 0 LP tokens
     }
 
     /**
