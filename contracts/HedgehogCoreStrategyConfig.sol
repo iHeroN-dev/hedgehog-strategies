@@ -8,11 +8,13 @@ struct CoreStrategyConfig {
     // and deposited into LP and farmed.
     address want;
     address short;
+    address wantEquivalent;
+    address shortEquivalent;
     /*****************************/
     /*             Farm           */
     /*****************************/
     // Liquidity pool address for base <-> short tokens
-    address wantShortLP;
+    address farmingLP;
     // Address for farming reward token - eg Spirit/BOO
     address farmToken;
     // Liquidity pool address for farmToken <-> wFTM
