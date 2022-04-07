@@ -4,7 +4,7 @@ pragma solidity 0.6.12;
 
 import "./BaseStrategy.sol";
 import "./HedgehogCoreStrategyConfig.sol";
-import "./IFarmMasterChef.sol";
+import "./Interfaces.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
@@ -523,7 +523,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
      */
     function _removeLpPercent(uint256 _deployedPercent) internal {
         uint256 lpPooled = countLpPooled();
-        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
+        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
         uint256 lpCount = lpUnpooled.add(lpPooled);
         uint256 lpReq = lpCount.mul(_deployedPercent).div(BASIS_PRECISION);
         uint256 lpWithdraw;
@@ -698,7 +698,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
         return (_amountShort.mul(wantInLp).div(shortInLp));
     }
 
@@ -715,12 +715,12 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
         return _amountWant.mul(shortInLp).div(wantInLp);
     }
 
     function balanceLpInShort() public view returns (uint256) {
-        return countLpPooled().add(wantShortLP.balanceOf(address(this)));        
+        return countLpPooled().add(farmingLP.balanceOf(address(this)));        
     }
 
     /// get value of all LP in want currency
@@ -728,7 +728,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         (uint256 wantInLp, ) = getFarmingLpReserves();
         return
             balanceLpInShort().mul(wantInLp).mul(2).div(
-                wantShortLP.totalSupply()
+                farmingLP.totalSupply()
             );
     }
 
@@ -762,7 +762,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             );
         uint256 harvestLP_A = _getHarvestInHarvestLp();
         uint256 shortLP_A = _getShortInHarvestLp();
-        (uint256 wantLP_B, uint256 shortLP_B) = getLpReserves();
+        (uint256 wantLP_B, uint256 shortLP_B) = getFarmingLpReserves();
 
         uint256 balShort = rewardsPending.mul(shortLP_A).div(harvestLP_A);
         uint256 balRewards = balShort.mul(wantLP_B).div(shortLP_B);
@@ -857,7 +857,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         internal
         returns (uint256 swapAmountWant, uint256 slippageWant)
     {
-        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
+        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
         uint256 lpPooled = countLpPooled();
         uint256 lpCount = lpUnpooled.add(lpPooled);
         uint256 lpReq = _amount.mul(lpCount).div(balanceLp());
@@ -880,7 +880,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     //  withdraws some LP worth _amount, uses withdrawn LP to add to collateral & repay debt
     function _withdrawLpRebalanceCollateral(uint256 _amount) internal {
-        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
+        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
         uint256 lpPooled = countLpPooled();
         uint256 lpCount = lpUnpooled.add(lpPooled);
         uint256 lpReq = _amount.mul(lpCount).div(balanceLp());
@@ -907,12 +907,12 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         //Swap necessary short, want to equivalents
         uint256 _amountShortToSwap = _amountShort - balanceShortEquivalent();
         if(_amountShortToSwap > 0 ) {
-            swapShortToShortEquivalent(_amountShortToSwap);
+            _swapShortToShortEquivalent(_amountShortToSwap);
         }
         uint256 _amountShortEquivalent = balanceShortEquivalent();
         uint256 _amountWantToSwap = _amountWant - balanceWantEquivalent();
         if(_amountWantToSwap > 0 ) {
-            swapWantToWantEquivalent(_amountShortToSwap);
+            _swapWantToWantEquivalent(_amountShortToSwap);
         }
         uint256 _amountWantEquivalent = balanceWantEquivalent();
 
@@ -926,6 +926,11 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             address(this),
             now
         );
+    }
+
+    function _cleanUpEquivalent() internal {
+        _swapWantEquivalentToWant(balanceWantEquivalent());
+        _swapShortEquivalentToShort(balanceShortEquivalent());
     }
 
     function _depositFarm() internal virtual {
@@ -950,9 +955,9 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     // all LP currently not in Farm is removed.
     // hedgehog -> also swap from equivalent to original
     function _removeAllLp() internal {
-        uint256 _amount = wantShortLP.balanceOf(address(this));
-        (uint256 wantLP, uint256 shortLP) = getLpReserves();
-        uint256 lpIssued = wantShortLP.totalSupply();
+        uint256 _amount = farmingLP.balanceOf(address(this));
+        (uint256 wantLP, uint256 shortLP) = getFarming();
+        uint256 lpIssued = farmingLP.totalSupply();
 
         uint256 amountAMin =
             _amount.mul(shortLP).mul(slippageAdj).div(BASIS_PRECISION).div(
