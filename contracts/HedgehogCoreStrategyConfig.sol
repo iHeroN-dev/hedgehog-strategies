@@ -23,6 +23,8 @@ struct HedgehogCoreStrategyConfig {
     address farmMasterChef;
     // farm PID for base <-> short LP farm
     uint256 farmPid;
+    //Address of the farm router (the contract to deposit the liquidity into)
+    address farmRouter;
     /*****************************/
     /*        Money Market       */
     /*****************************/

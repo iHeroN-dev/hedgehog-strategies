@@ -48,6 +48,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     ICTokenErc20 cTokenBorrow;
     IFarmMasterChef farm;
     IUniswapV2Router01 router;
+    IUniswapV2Router01 farmRouter;
     IComptroller comptroller;
     IPriceOracle oracle;
     IStrategyInsurance public insurance;
@@ -82,6 +83,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         cTokenBorrow = ICTokenErc20(_config.cTokenBorrow);
         farm = IFarmMasterChef(_config.farmMasterChef);
         router = IUniswapV2Router01(_config.router);
+        farmRouter = IUniswapV2Router01(_config.farmRouter);
         comptroller = IComptroller(_config.comptroller);
         weth = router.WETH();
 
@@ -404,10 +406,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     // hh -> this functions should return a price similar to the oracle one. 
     // otherwise it means that the "equivalent" tokens are not correctly pegged
     function getLpPrice() public view returns (uint256) {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
         return wantInLp.mul(1e18).div(shortInLp);
     }
-
+\
     /**
      * @notice
      *  Reverts if the difference in the price sources are >  priceSourceDiff
