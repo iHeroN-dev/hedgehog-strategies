@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.6.12;
+pragma solidity 0.6.12;
 
 import "./BaseStrategy.sol";
 import "./HedgehogCoreStrategyConfig.sol";
 import "./IFarmMasterChef.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
 abstract contract HedgeHogCoreStrategy is BaseStrategy {
@@ -111,36 +111,36 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256 totalAssets = estimatedTotalAssets();
         uint256 totalDebt = _getTotalDebt();
         if (totalAssets > totalDebt) {
-            _profit = totalAssets - totalDebt;
-            (uint256 amountFreed, ) = _withdraw(_debtOutstanding + _profit);
+            _profit = totalAssets.sub(totalDebt);
+            (uint256 amountFreed, ) = _withdraw(_debtOutstanding.add(_profit));
             if (_debtOutstanding > amountFreed) {
                 _debtPayment = amountFreed;
                 _profit = 0;
             } else {
                 _debtPayment = _debtOutstanding;
-                _profit = amountFreed - _debtOutstanding;
+                _profit = amountFreed.sub(_debtOutstanding);
             }
         } else {
             _withdraw(_debtOutstanding);
             _debtPayment = balanceOfWant();
-            _loss = totalDebt - totalAssets;
+            _loss = totalDebt.sub(totalAssets);
         }
 
         if (balancePendingHarvest() > 100) {
-            _profit += _harvestInternal();
+            _profit = _profit.add(_harvestInternal());
         }
 
         // Check if we're net loss or net profit
         if (_loss >= _profit) {
             _profit = 0;
-            _loss = _loss - _profit;
+            _loss = _loss.sub(_profit);
             insurance.reportLoss(totalDebt, _loss);
         } else {
-            _profit = _profit - _loss;
+            _profit = _profit.sub(_loss);
             _loss = 0;
             uint256 insurancePayment =
                 insurance.reportProfit(totalDebt, _profit);
-            _profit = _profit - insurancePayment;
+            _profit = _profit.sub(insurancePayment);
 
             // double check insurance isn't asking for too much or zero
             if (insurancePayment > 0 && insurancePayment < _profit) {
@@ -158,7 +158,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         if (_debtOutstanding >= _wantAvailable) {
             return;
         }
-        uint256 toInvest = _wantAvailable - _debtOutstanding;
+        uint256 toInvest = _wantAvailable.sub(_debtOutstanding);
         if (toInvest > 0) {
             _deploy(toInvest);
         }
@@ -348,7 +348,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         returns (bool)
     {
         return
-            cTokenLend.totalCollateralTokens() + _amount < cTokenLend.collateralCap();
+            cTokenLend.totalCollateralTokens().add(_amount) <
+            cTokenLend.collateralCap();
     }
 
     function _rebalanceCollateralInternal() internal {
@@ -358,19 +359,21 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
         if (collatRatio > collatTarget) {
             uint256 adjAmount =
-                (shortPos - (lendPos * collatTarget / BASIS_PRECISION)
-                ) * BASIS_PRECISION / (BASIS_PRECISION + collatTarget);
+                (shortPos.sub(lendPos.mul(collatTarget).div(BASIS_PRECISION)))
+                    .mul(BASIS_PRECISION)
+                    .div(BASIS_PRECISION.add(collatTarget));
             /// remove some LP use 50% of withdrawn LP to repay debt and half to add to collateral
-            _withdrawLpRebalanceCollateral(adjAmount * 2);
+            _withdrawLpRebalanceCollateral(adjAmount.mul(2));
             emit CollatRebalance(collatRatio, adjAmount);
         } else if (collatRatio < collatTarget) {
             uint256 adjAmount =
-                ((lendPos * collatTarget / BASIS_PRECISION)- shortPos)
-                    * BASIS_PRECISION / (BASIS_PRECISION + collatTarget);
+                ((lendPos.mul(collatTarget).div(BASIS_PRECISION)).sub(shortPos))
+                    .mul(BASIS_PRECISION)
+                    .div(BASIS_PRECISION.add(collatTarget));
             uint256 borrowAmt = _borrowWantEq(adjAmount);
             _redeemWant(adjAmount);
-            _addToLP(borrowAmt);//_addToLP(_amountShort)
-            _depositFarm();
+            _addToLP(borrowAmt);
+            _depoistLp();
             emit CollatRebalance(collatRatio, adjAmount);
         }
     }
@@ -382,15 +385,15 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         }
 
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getFarmingLpPrice();
+        uint256 lpPrice = getLpPrice();
         uint256 borrow =
-            collatTarget * _amount * 1e18 / 
-                BASIS_PRECISION * (
-                    (collatTarget * lpPrice / BASIS_PRECISION + oPrice)
+            collatTarget.mul(_amount).mul(1e18).div(
+                BASIS_PRECISION.mul(
+                    (collatTarget.mul(lpPrice).div(BASIS_PRECISION).add(oPrice))
                 )
             );
-        uint256 debtAllocation = borrow * lpPrice / 1e18;
-        uint256 lendNeeded = _amount - debtAllocation;
+        uint256 debtAllocation = borrow.mul(lpPrice).div(1e18);
+        uint256 lendNeeded = _amount.sub(debtAllocation);
 
         _lendWant(lendNeeded);
         _borrow(borrow);
@@ -400,9 +403,9 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     // hh -> this functions should return a price similar to the oracle one. 
     // otherwise it means that the "equivalent" tokens are not correctly pegged
-    function getFarmingLpPrice() public view returns (uint256) {
-        (uint256 wantEquivInLp, uint256 shortEquivInLp) = getFarmingLpReserves();
-        return wantEquivInLp * 1e18 / shortEquivInLp;
+    function getLpPrice() public view returns (uint256) {
+        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        return wantInLp.mul(1e18).div(shortInLp);
     }
 
     /**
@@ -412,10 +415,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     function _testPriceSource() internal returns (bool) {
         if (doPriceCheck) {
             uint256 oPrice = oracle.getPrice();
-            uint256 lpPrice = getFarmingLpPrice();
-            uint256 priceSourceRatio = oPrice*BASIS_PRECISION/lpPrice;
-            return (priceSourceRatio > BASIS_PRECISION - priceSourceDiff &&
-                priceSourceRatio < BASIS_PRECISION + priceSourceDiff);
+            uint256 lpPrice = getLpPrice();
+            uint256 priceSourceRatio = oPrice.mul(BASIS_PRECISION).div(lpPrice);
+            return (priceSourceRatio > BASIS_PRECISION.sub(priceSourceDiff) &&
+                priceSourceRatio < BASIS_PRECISION.add(priceSourceDiff));
         }
         return true;
     }
@@ -447,39 +450,41 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         returns (uint256 _lendNeeded, uint256 _borrow)
     {
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getFarmingLpPrice();
-        uint256 Si2 = balanceShort() * 2;
+        uint256 lpPrice = getLpPrice();
+        uint256 Si2 = balanceShort().mul(2);
         uint256 Di = balanceDebtInShort();
-        uint256 CrPlp = collatTarget * lpPrice;
+        uint256 CrPlp = collatTarget.mul(lpPrice);
         uint256 numerator;
 
         // NOTE: may throw if _amount * CrPlp > 1e70
         if (Di > Si2) {
             numerator = (
-                collatTarget * _amount * 1e18 + (CrPlp * Di - Si2)
-            ) - (oPrice* BASIS_PRECISION * Di);
+                collatTarget.mul(_amount).mul(1e18).add(CrPlp.mul(Di.sub(Si2)))
+            )
+                .sub(oPrice.mul(BASIS_PRECISION).mul(Di));
         } else {
             numerator = (
-                collatTarget * _amount * 1e18 - CrPlp * (Si2 - Di)
+                collatTarget.mul(_amount).mul(1e18).sub(CrPlp.mul(Si2.sub(Di)))
             )
-                - (oPrice* BASIS_PRECISION * Di);
+                .sub(oPrice.mul(BASIS_PRECISION).mul(Di));
         }
 
-        _borrow = numerator /
-            BASIS_PRECISION * oPrice + CrPlp/BASIS_PRECISION)
+        _borrow = numerator.div(
+            BASIS_PRECISION.mul(oPrice.add(CrPlp.div(BASIS_PRECISION)))
         );
-        _lendNeeded = _amount - (
-            (_borrow + Si2- Di ) * lpPrice / 1e18
+        _lendNeeded = _amount.sub(
+            (_borrow.add(Si2).sub(Di)).mul(lpPrice).div(1e18)
         );
     }
 
     function _deployFromLend(uint256 _amount) internal {
         (uint256 _lendNeeded, uint256 _borrowAmt) = _calcDeployment(_amount);
-        _redeemWant(balanceLend() - _lendNeeded);
+        _redeemWant(balanceLend().sub(_lendNeeded));
         _borrow(_borrowAmt);
         _addToLP(balanceShort());
-        _depositFarm();
+        _depoistLp();
     }
+
 
     function _rebalanceDebtInternal() internal {
         uint256 swapAmountWant;
@@ -495,7 +500,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         if (debtInShort > balShort) {
             uint256 debt = convertShortToWantLP(debtInShort);
             // If there's excess debt, we swap some want to repay a portion of the debt
-            swapAmountWant = debt * rebalancePercent / BASIS_PRECISION;
+            swapAmountWant = debt.mul(rebalancePercent).div(BASIS_PRECISION);
             _redeemWant(swapAmountWant);
             slippage = _swapExactWantShort(swapAmountWant);
             _repayDebt();
@@ -503,7 +508,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             // If there's excess short, we swap some to want which will be used
             // to create lp in _deployFromLend()
             (swapAmountWant, slippage) = _swapExactShortWant(
-                balanceShort() * rebalancePercent / BASIS_PRECISION)
+                balanceShort().mul(rebalancePercent).div(BASIS_PRECISION)
             );
         }
 
@@ -518,12 +523,12 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
      */
     function _removeLpPercent(uint256 _deployedPercent) internal {
         uint256 lpPooled = countLpPooled();
-        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
-        uint256 lpCount = lpUnpooled + lpPooled;
-        uint256 lpReq = lpCount * _deployedPercent / BASIS_PRECISION;
+        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
+        uint256 lpCount = lpUnpooled.add(lpPooled);
+        uint256 lpReq = lpCount.mul(_deployedPercent).div(BASIS_PRECISION);
         uint256 lpWithdraw;
         if (lpReq - lpUnpooled < lpPooled) {
-            lpWithdraw = lpReq - lpUnpooled;
+            lpWithdraw = lpReq.sub(lpUnpooled);
         } else {
             lpWithdraw = lpPooled;
         }
@@ -552,22 +557,22 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256 newAmount = _amountNeeded;
         uint256 totalDebt = _getTotalDebt();
         if (totalDebt > totalAssets) {
-            uint256 ratio = totalAssets * STD_PRECISION / totalDebt;
-            newAmount = _amountNeeded * ratio / STD_PRECISION);
-            _loss = _amountNeeded - newAmount;
+            uint256 ratio = totalAssets.mul(STD_PRECISION).div(totalDebt);
+            newAmount = _amountNeeded.mul(ratio).div(STD_PRECISION);
+            _loss = _amountNeeded.sub(newAmount);
         }
 
         // Liquidate the amount needed
         (, uint256 _slippage) = _withdraw(newAmount);
-        _loss = _loss + _slippage;
+        _loss = _loss.add(_slippage);
 
         // NOTE: Maintain invariant `want.balanceOf(this) >= _liquidatedAmount`
         // NOTE: Maintain invariant `_liquidatedAmount + _loss <= _amountNeeded`
         _liquidatedAmount = balanceOfWant();
-        if (_liquidatedAmount + _loss > _amountNeeded) {
-            _liquidatedAmount = _amountNeeded - _loss);
+        if (_liquidatedAmount.add(_loss) > _amountNeeded) {
+            _liquidatedAmount = _amountNeeded.sub(_loss);
         } else {
-            _loss = _amountNeeded - _liquidatedAmount);
+            _loss = _amountNeeded.sub(_liquidatedAmount);
         }
     }
 
@@ -594,13 +599,15 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
         // stratPercent: Percentage of the deployed capital we want to liquidate.
         uint256 stratPercent =
-            (_amountNeeded - balanceWant) * BASIS_PRECISION / balanceDeployed;
+            _amountNeeded.sub(balanceWant).mul(BASIS_PRECISION).div(
+                balanceDeployed
+            );
 
         if (stratPercent > 9500) {
             // If this happened, we just undeploy the lot
             // and it'll be redeployed during the next harvest.
             (, _loss) = liquidateAllPositionsInternal();
-            _liquidatedAmount = balanceOfWant() - balanceWant;
+            _liquidatedAmount = balanceOfWant().sub(balanceWant);
         } else {
             // liquidate all to lend
             liquidateAllToLend();
@@ -615,18 +622,20 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
                 if (debtInShort > shortInShort) {
                     uint256 debt = convertShortToWantLP(debtInShort);
                     uint256 swapAmountWant =
-                        debt * stratPercent / BASIS_PRECISION;
+                        debt.mul(stratPercent).div(BASIS_PRECISION);
                     _redeemWant(swapAmountWant);
                     slippage = _swapExactWantShort(swapAmountWant);
                     _repayDebt();
                 } else {
-                    (, slippage) = _swapExactShortWant(balanceShort() * stratPercent / BASIS_PRECISION);
+                    (, slippage) = _swapExactShortWant(
+                        balanceShort().mul(stratPercent).div(BASIS_PRECISION)
+                    );
                 }
             }
 
             // Redeploy the strat
-            _deployFromLend(balanceDeployed + slippage - _amountNeeded);
-            _liquidatedAmount = balanceOfWant() - balanceWant;
+            _deployFromLend(balanceDeployed.sub(_amountNeeded).add(slippage));
+            _liquidatedAmount = balanceOfWant().sub(balanceWant);
             _loss = slippage;
         }
     }
@@ -648,23 +657,25 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     // calculate total value of vault assets
     function estimatedTotalAssets() public view override returns (uint256) {
-        return balanceOfWant() + balanceDeployed();
+        return balanceOfWant().add(balanceDeployed());
     }
 
     // calculate total value of vault assets
     function balanceDeployed() public view returns (uint256) {
         return
-            balanceLend() + balanceLp() + balanceShortWantEq() - balanceDebt();
+            balanceLend().add(balanceLp()).add(balanceShortWantEq()).sub(
+                balanceDebt()
+            );
     }
 
     // debt ratio - used to trigger rebalancing of debt
     function calcDebtRatio() public view returns (uint256) {
-        return balanceDebt() * BASIS_PRECISION * 2 / balanceLp();
+        return (balanceDebt().mul(BASIS_PRECISION).mul(2).div(balanceLp()));
     }
 
     // calculate debt / collateral - used to trigger rebalancing of debt & collateral
     function calcCollateral() public view returns (uint256) {
-        return balanceDebtOracle() * BASIS_PRECISION / balanceLend();
+        return balanceDebtOracle().mul(BASIS_PRECISION).div(balanceLend());
     }
 
     function getFarmingLpReserves()
@@ -687,8 +698,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
-        return _amountShort * wantInLp / shortInLp;
+        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        return (_amountShort.mul(wantInLp).div(shortInLp));
     }
 
     function convertShortToWantOracle(uint256 _amountShort)
@@ -696,7 +707,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        return _amountShort * oracle.getPrice() / 1e18;
+        return _amountShort.mul(oracle.getPrice()).div(1e18);
     }
 
     function convertWantToShortLP(uint256 _amountWant)
@@ -704,19 +715,21 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
-        return _amountWant * shortInLp / wantInLp;
+        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        return _amountWant.mul(shortInLp).div(wantInLp);
     }
 
     function balanceLpInShort() public view returns (uint256) {
-        return countLpPooled() + farmingLP.balanceOf(address(this);
+        return countLpPooled().add(wantShortLP.balanceOf(address(this)));        
     }
 
     /// get value of all LP in want currency
     function balanceLp() public view returns (uint256) {
         (uint256 wantInLp, ) = getFarmingLpReserves();
         return
-            balanceLpInShort() * wantInLp * 2 / farmingLP.totalSupply();
+            balanceLpInShort().mul(wantInLp).mul(2).div(
+                wantShortLP.totalSupply()
+            );
     }
 
     // value of borrowed tokens in value of want tokens
@@ -749,11 +762,11 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             );
         uint256 harvestLP_A = _getHarvestInHarvestLp();
         uint256 shortLP_A = _getShortInHarvestLp();
-        (uint256 wantLP_B, uint256 shortLP_B) = getFarmingLpReserves();
+        (uint256 wantLP_B, uint256 shortLP_B) = getLpReserves();
 
-        uint256 balShort = rewardsPending * shortLP_A / harvestLP_A;
-        uint256 balRewards = balShort * wantLP_B / shortLP_B;
-        return balRewards;
+        uint256 balShort = rewardsPending.mul(shortLP_A).div(harvestLP_A);
+        uint256 balRewards = balShort.mul(wantLP_B).div(shortLP_B);
+        return (balRewards);
     }
 
     // reserves
@@ -779,9 +792,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     function balanceLend() public view returns (uint256) {
         return (
-            cTokenLend.balanceOf(address(this) * 
-            cTokenLend.exchangeRateStored() / 
-            1e18
+            cTokenLend
+                .balanceOf(address(this))
+                .mul(cTokenLend.exchangeRateStored())
+                .div(1e18)
         );
     }
 
@@ -843,10 +857,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         internal
         returns (uint256 swapAmountWant, uint256 slippageWant)
     {
-        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
+        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
         uint256 lpPooled = countLpPooled();
-        uint256 lpCount = lpUnpooled + lpPooled;
-        uint256 lpReq = _amount * lpCount/ balanceLp();
+        uint256 lpCount = lpUnpooled.add(lpPooled);
+        uint256 lpReq = _amount.mul(lpCount).div(balanceLp());
         uint256 lpWithdraw;
         if (lpReq - lpUnpooled < lpPooled) {
             lpWithdraw = lpReq - lpUnpooled;
@@ -856,7 +870,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _withdrawSomeLp(lpWithdraw);
         _removeAllLp();
         swapAmountWant = Math.min(
-            _amount / 2,
+            _amount.div(2),
             want.balanceOf(address(this))
         );
         slippageWant = _swapExactWantShort(swapAmountWant);
@@ -866,10 +880,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     //  withdraws some LP worth _amount, uses withdrawn LP to add to collateral & repay debt
     function _withdrawLpRebalanceCollateral(uint256 _amount) internal {
-        uint256 lpUnpooled = farmingLP.balanceOf(address(this));
+        uint256 lpUnpooled = wantShortLP.balanceOf(address(this));
         uint256 lpPooled = countLpPooled();
-        uint256 lpCount = lpUnpooled + lpPooled;
-        uint256 lpReq = _amount * lpCount / balanceLp();
+        uint256 lpCount = lpUnpooled.add(lpPooled);
+        uint256 lpReq = _amount.mul(lpCount).div(balanceLp());
         uint256 lpWithdraw;
         if (lpReq - lpUnpooled < lpPooled) {
             lpWithdraw = lpReq - lpUnpooled;
@@ -879,8 +893,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _withdrawSomeLp(lpWithdraw);
         _removeAllLp();
         uint256 wantBal = balanceOfWant();
-        if (_amount / 2 <= wantBal) {
-            _lendWant(_amount / 2);
+        if (_amount.div(2) <= wantBal) {
+            _lendWant(_amount.div(2));
         } else {
             _lendWant(wantBal);
         }
@@ -888,7 +902,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     }
 
     function _addToLP(uint256 _amountShort) internal {
-        uint256 _amountWant = Math.min(convertShortToWantLP(_amountShort), want.balanceOf(address(this));
+        uint256 _amountWant = Math.min(convertShortToWantLP(_amountShort), want.balanceOf(address(this)));
 
         //Swap necessary short, want to equivalents
         uint256 _amountShortToSwap = _amountShort - balanceShortEquivalent();
@@ -903,12 +917,12 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256 _amountWantEquivalent = balanceWantEquivalent();
 
         router.addLiquidity(
-            address(shortEquivalent),
-            address(wantEquivalent),
-            _amountShortEquivalent,
-            _amountWantEquivalent,
-            _amountShortEquivalent * slippageAdj / BASIS_PRECISION,
-            _amountWantEquivalent * slippageAdj / BASIS_PRECISION,
+            address(short),
+            address(want),
+            _amountShort,
+            _amountWant,
+            _amountShort.mul(slippageAdj).div(BASIS_PRECISION),
+            _amountWant.mul(slippageAdj).div(BASIS_PRECISION),
             address(this),
             now
         );
@@ -936,17 +950,21 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     // all LP currently not in Farm is removed.
     // hedgehog -> also swap from equivalent to original
     function _removeAllLp() internal {
-        uint256 _amount = farmingLP.balanceOf(address(this));
-        (uint256 wantEquivLP, uint256 shortEquivLP) = getFarmingLpReserves();
-        uint256 lpIssued = farmingLP.totalSupply();
+        uint256 _amount = wantShortLP.balanceOf(address(this));
+        (uint256 wantLP, uint256 shortLP) = getLpReserves();
+        uint256 lpIssued = wantShortLP.totalSupply();
 
         uint256 amountAMin =
-            _amount * shortLP * slippageAdj / BASIS_PRECISION / lpIssued;
+            _amount.mul(shortLP).mul(slippageAdj).div(BASIS_PRECISION).div(
+                lpIssued
+            );
         uint256 amountBMin =
-            _amount * wantLP * slippageAdj / BASIS_PRECISION / lpIssued;
+            _amount.mul(wantLP).mul(slippageAdj).div(BASIS_PRECISION).div(
+                lpIssued
+            );
         router.removeLiquidity(
-            address(shortEquivalent),
-            address(wantEquivalent),
+            address(short),
+            address(want),
             _amount,
             amountAMin,
             amountBMin,
@@ -954,8 +972,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             now
         );
 
-        //TODO swap wantEquivalent -> want with price check
-        //TODO swap shortEquivalent -> short with price check
+        //TODO swap shorteq for short, wanteq for want
     }
 
     function _sellHarvestWant() internal virtual {
@@ -1001,7 +1018,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
-                amountOutMin * slippageAdj / BASIS_PRECISION,
+                amountOutMin.mul(slippageAdj).div(BASIS_PRECISION),
                 getTokenOutPath(address(want), address(short)), // _pathWantToShort(),
                 address(this),
                 now
@@ -1025,12 +1042,11 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         internal
         returns (uint256 _amountWant, uint256 _slippageWant)
     {
-        //TODO add router and LP for this
         _amountWant = convertShortToWantLP(_amountShort);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amountShort,
-                _amountWant * slippageAdj / BASIS_PRECISION,
+                _amountWant.mul(slippageAdj).div(BASIS_PRECISION),
                 getTokenOutPath(address(short), address(want)),
                 address(this),
                 now
@@ -1046,7 +1062,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     {
         uint256 amountInWant = convertShortToWantLP(_amountOut);
         uint256 amountInMax =
-            (amountInWant * BASIS_PRECISION / slippageAdj)+10; // add 1 to make up for rounding down
+            (amountInWant.mul(BASIS_PRECISION).div(slippageAdj)).add(10); // add 1 to make up for rounding down
         uint256[] memory amounts =
             router.swapTokensForExactTokens(
                 _amountOut,
@@ -1055,7 +1071,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
                 address(this),
                 now
             );
-        _slippageWant = amounts[0] - amountInWant;
+        _slippageWant = amounts[0].sub(amountInWant);
     }
 
     /**

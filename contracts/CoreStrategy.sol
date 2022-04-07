@@ -1,3 +1,12 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity 0.6.12;
+
+import "./BaseStrategy.sol";
+import "./HedgehogCoreStrategyConfig.sol";
+import "./IFarmMasterChef.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+
 abstract contract CoreStrategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;

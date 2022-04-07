@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.1;
+pragma solidity 0.6.12;
 
 struct CoreStrategyConfig {
     // A portion of want token is depoisited into a lending platform to be used as
