@@ -20,6 +20,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256 collatRatio, 
         uint256 adjAmount
     );
+    
+    bool public doPriceCheck = true;
 
     uint256 public collatUpper = 5500;
     uint256 public collatTarget = 5000;
@@ -83,7 +85,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         weth = router.WETH();
 
         enterMarket();
-        _updateLendAndDebtAllocation();
+        approveContracts();
 
         maxReportDelay = 7200;
         minReportDelay = 3600;
@@ -264,8 +266,6 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     function liquidateAllToLend() internal {
         _withdrawAllPooled();
         _removeAllLp();
-        _swapWantEquivalentToWant(wantEquivalent.balanceOf(address(this)));//FIXME amount -> all
-        _swapShortEquivalentToShort(shortEquivalent.balanceOf(address(this)));//FIXME amount -> all
         _repayDebt();
         _lendWant(balanceOfWant());
     }
@@ -284,9 +284,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     {
         _withdrawAllPooled();
         _removeAllLp();
-        _swapWantEquivalentToWant(wantEquivalent.balanceOf(address(this)));//FIXME amount -> all
-        _swapShortEquivalentToShort(shortEquivalent.balanceOf(address(this)));//FIXME amount -> all
-        
+        _cleanUpEquivalent();
 
         uint256 debtInShort = balanceDebtInShortCurrent();
         uint256 balShort = balanceShort();
@@ -371,7 +369,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             uint256 borrowAmt = _borrowWantEq(adjAmount);
             _redeemWant(adjAmount);
             _addToLP(borrowAmt);//_addToLP(_amountShort)
-            _depoistLp();
+            _depositFarm();
             emit CollatRebalance(collatRatio, adjAmount);
         }
     }
@@ -383,7 +381,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         }
 
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getLpPrice();
+        uint256 lpPrice = getFarmingLpPrice();
         uint256 borrow =
             collatTarget * _amount * 1e18 / 
                 BASIS_PRECISION * (
@@ -396,12 +394,14 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _lendWant(lendNeeded);
         _borrow(borrow);
         _addToLP(borrow);
-        _depoistLp();
+        _depositFarm();
     }
 
-    function getLpPrice() public view returns (uint256) {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
-        return wantInLp * 1e18 / shortInLp;
+    // hh -> this functions should return a price similar to the oracle one. 
+    // otherwise it means that the "equivalent" tokens are not correctly pegged
+    function getFarmingLpPrice() public view returns (uint256) {
+        (uint256 wantEquivInLp, uint256 shortEquivInLp) = getFarmingLpReserves();
+        return wantEquivInLp * 1e18 / shortEquivInLp;
     }
 
     /**
@@ -411,7 +411,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     function _testPriceSource() internal returns (bool) {
         if (doPriceCheck) {
             uint256 oPrice = oracle.getPrice();
-            uint256 lpPrice = getLpPrice();
+            uint256 lpPrice = getFarmingLpPrice();
             uint256 priceSourceRatio = oPrice*BASIS_PRECISION/lpPrice;
             return (priceSourceRatio > BASIS_PRECISION - priceSourceDiff &&
                 priceSourceRatio < BASIS_PRECISION + priceSourceDiff);
@@ -446,7 +446,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         returns (uint256 _lendNeeded, uint256 _borrow)
     {
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getLpPrice();
+        uint256 lpPrice = getFarmingLpPrice();
         uint256 Si2 = balanceShort() * 2;
         uint256 Di = balanceDebtInShort();
         uint256 CrPlp = collatTarget * lpPrice;
@@ -477,7 +477,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _redeemWant(balanceLend() - _lendNeeded);
         _borrow(_borrowAmt);
         _addToLP(balanceShort());
-        _depoistLp();
+        _depositFarm();
     }
 
     function _rebalanceDebtInternal() internal {
@@ -666,7 +666,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         return balanceDebtOracle() * BASIS_PRECISION / balanceLend();
     }
 
-    function getLpReserves()
+    function getFarmingLpReserves()
         public
         view
         returns (uint256 _wantEquivalentInLp, uint256 _shortEquivalentInLp)
@@ -686,7 +686,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
         return _amountShort * wantInLp / shortInLp;
     }
 
@@ -703,7 +703,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
         return _amountWant * shortInLp / wantInLp;
     }
 
@@ -713,7 +713,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     /// get value of all LP in want currency
     function balanceLp() public view returns (uint256) {
-        (uint256 wantInLp, ) = getLpReserves();
+        (uint256 wantInLp, ) = getFarmingLpReserves();
         return
             balanceLpInShort() * wantInLp * 2 / farmingLP.totalSupply();
     }
@@ -748,7 +748,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             );
         uint256 harvestLP_A = _getHarvestInHarvestLp();
         uint256 shortLP_A = _getShortInHarvestLp();
-        (uint256 wantLP_B, uint256 shortLP_B) = getLpReserves();
+        (uint256 wantLP_B, uint256 shortLP_B) = getFarmingLpReserves();
 
         uint256 balShort = rewardsPending * shortLP_A / harvestLP_A;
         uint256 balRewards = balShort * wantLP_B / shortLP_B;
@@ -899,7 +899,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         );
     }
 
-    function _depoistLp() internal virtual {
+    function _depositFarm() internal virtual {
         uint256 lpBalance = farmingLP.balanceOf(address(this)); /// get number of LP tokens
         farm.deposit(farmPid, lpBalance); /// deposit LP tokens to farm
     }
@@ -919,9 +919,10 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     }
 
     // all LP currently not in Farm is removed.
+    // hedgehog -> also swap from equivalent to original
     function _removeAllLp() internal {
         uint256 _amount = farmingLP.balanceOf(address(this));
-        (uint256 wantEquivLP, uint256 shortEquivLP) = getLpReserves();
+        (uint256 wantEquivLP, uint256 shortEquivLP) = getFarmingLpReserves();
         uint256 lpIssued = farmingLP.totalSupply();
 
         uint256 amountAMin =
@@ -937,6 +938,9 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             address(this),
             now
         );
+
+        //TODO swap wantEquivalent -> want with price check
+        //TODO swap shortEquivalent -> short with price check
     }
 
     function _sellHarvestWant() internal virtual {
@@ -992,6 +996,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         );
     }
 
+
     /**
      * @notice
      *  Swaps _amount of short for want
@@ -1005,6 +1010,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         internal
         returns (uint256 _amountWant, uint256 _slippageWant)
     {
+        //TODO add router and LP for this
         _amountWant = convertShortToWantLP(_amountShort);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
@@ -1017,6 +1023,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _slippageWant = _amountWant.sub(amounts[amounts.length - 1]);
     }
 
+
+    //TODO add router and LP for this
     function _swapWantShortExact(uint256 _amountOut)
         internal
         returns (uint256 _slippageWant)
