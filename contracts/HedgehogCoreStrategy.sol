@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.1;
+pragma solidity ^0.6.12;
 
 import "./BaseStrategy.sol";
 import "./HedgehogCoreStrategyConfig.sol";
 import "./IFarmMasterChef.sol";
-import "./SafeERC20";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 
 abstract contract HedgeHogCoreStrategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -764,6 +765,14 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         return (short.balanceOf(address(this)));
     }
 
+    function balanceWantEquivalent() public view returns (uint256) {
+        return (wantEquivalent.balanceOf(address(this)));
+    }
+
+    function balanceShortEquivalent() public view returns (uint256) {
+        return (shortEquivalent.balanceOf(address(this)));
+    }
+
     function balanceShortWantEq() public view returns (uint256) {
         return (convertShortToWantLP(short.balanceOf(address(this))));
     }
@@ -878,22 +887,28 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _repayDebt();
     }
 
-    //TODO swap want -> wantequiv and short -> short equiv first
     function _addToLP(uint256 _amountShort) internal {
-        uint256 _amountWant = convertShortToWantLP(_amountShort);
+        uint256 _amountWant = Math.min(convertShortToWantLP(_amountShort), want.balanceOf(address(this));
 
-        uint256 balWant = want.balanceOf(address(this));
-        if (balWant < _amountWant) {
-            _amountWant = balWant;
+        //Swap necessary short, want to equivalents
+        uint256 _amountShortToSwap = _amountShort - balanceShortEquivalent();
+        if(_amountShortToSwap > 0 ) {
+            swapShortToShortEquivalent(_amountShortToSwap);
         }
+        uint256 _amountShortEquivalent = balanceShortEquivalent();
+        uint256 _amountWantToSwap = _amountWant - balanceWantEquivalent();
+        if(_amountWantToSwap > 0 ) {
+            swapWantToWantEquivalent(_amountShortToSwap);
+        }
+        uint256 _amountWantEquivalent = balanceWantEquivalent();
 
         router.addLiquidity(
-            address(short),
-            address(want),
-            _amountShort,
-            _amountWant,
-            _amountShort * slippageAdj / BASIS_PRECISION,
-            _amountWant * slippageAdj / BASIS_PRECISION,
+            address(shortEquivalent),
+            address(wantEquivalent),
+            _amountShortEquivalent,
+            _amountWantEquivalent,
+            _amountShortEquivalent * slippageAdj / BASIS_PRECISION,
+            _amountWantEquivalent * slippageAdj / BASIS_PRECISION,
             address(this),
             now
         );
