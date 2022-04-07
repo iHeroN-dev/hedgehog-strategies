@@ -373,7 +373,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             uint256 borrowAmt = _borrowWantEq(adjAmount);
             _redeemWant(adjAmount);
             _addToLP(borrowAmt);
-            _depoistLp();
+            _depositFarm();
             emit CollatRebalance(collatRatio, adjAmount);
         }
     }
@@ -482,7 +482,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _redeemWant(balanceLend().sub(_lendNeeded));
         _borrow(_borrowAmt);
         _addToLP(balanceShort());
-        _depoistLp();
+        _depositFarm();
     }
 
 
@@ -953,10 +953,9 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     }
 
     // all LP currently not in Farm is removed.
-    // hedgehog -> also swap from equivalent to original
     function _removeAllLp() internal {
         uint256 _amount = farmingLP.balanceOf(address(this));
-        (uint256 wantLP, uint256 shortLP) = getFarming();
+        (uint256 wantLP, uint256 shortLP) = getFarmingLpReserves();
         uint256 lpIssued = farmingLP.totalSupply();
 
         uint256 amountAMin =
@@ -976,8 +975,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             address(this),
             now
         );
-
-        //TODO swap shorteq for short, wanteq for want
+        _cleanUpEquivalent();
     }
 
     function _sellHarvestWant() internal virtual {
@@ -1022,16 +1020,16 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         uint256 amountOutMin = convertWantToShortLP(_amount);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
-                _amount,
-                amountOutMin.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(want), address(short)), // _pathWantToShort(),
-                address(this),
-                now
-            );
+            _amount,
+            amountOutMin.mul(slippageAdj).div(BASIS_PRECISION),
+            getTokenOutPath(address(want), address(short)), // _pathWantToShort(),
+            address(this),
+            now
+        );
         slippageWant = convertShortToWantLP(
             amountOutMin.sub(amounts[amounts.length - 1])
         );
-    }
+}
 
 
     /**
@@ -1077,6 +1075,24 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
                 now
             );
         _slippageWant = amounts[0].sub(amountInWant);
+    }
+
+    function _swapWantToWantEquivalent(uint256 _amount) 
+        internal
+        returns (uint256 _slippage) 
+    {
+        _testPriceSource();
+        uint256 _amountInTheory = convertWantToWantEquivalent(_amount);
+        uint256[] memory amounts =
+            router.swapExactTokensForTokens(
+                _amount,
+                _amount.mul(slippageAdj).div(BASIS_PRECISION),
+                getTokenOutPath(address(short), address(want)),
+                address(this),
+                now
+            );
+        _slippage = _amountInTheory.sub(amounts[amounts.length - 1]);
+    
     }
 
     /**
