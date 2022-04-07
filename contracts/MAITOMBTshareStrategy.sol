@@ -2,25 +2,26 @@
 
 pragma solidity 0.6.12;
 
+import "./HedgehogCoreStrategy.sol";
 contract MAITOMBTshareStrategy is HedgehogCoreStrategy {
     constructor(address _vault)
         public
-        CoreStrategy(
+        HedgehogCoreStrategy(
             _vault,
-            CoreStrategyConfig(
+            CoreSHedgehogCoreStrategyConfig(
                 0xfB98B335551a418cD0737375a2ea0ded62Ea213b, // want
                 0x6c021Ae822BEa943b2E66552bDe1D2696a53fbB7, // short
                 0x45f4682B560d4e3B8FF1F1b3A38FDBe775C7177b, // wantShortLP
                 0x4cdF39285D7Ca8eB3f090fDA0C069ba5F4145B37, // farmToken -> Tshare
-                , // farmTokenLp
+                0x0, // farmTokenLp
                 0xcc0a87f7e7c693042a9cc703661f5060c80acb43, // farmMasterChef
                 2, // farmPid -> 2 for MAI/TOMB
-                , // cTokenLend
-                , // cTokenBorrow
-                , // compToken
-                , // compTokenLP
-                , // comptroller
-                 // router
+                0x0, // cTokenLend
+                0x0, // cTokenBorrow
+                0x0, // compToken
+                0x0, // compTokenLP
+                0x0, // comptroller
+                0x0 // router
             )
         )
     {

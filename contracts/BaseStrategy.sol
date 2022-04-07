@@ -7,6 +7,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {StrategyLib} from "./StrategyLib.sol";
 
+// Part: yearn/yearn-vaults@0.4.3/VaultAPI
+
 struct StrategyParams {
     uint256 performanceFee;
     uint256 activation;
@@ -128,6 +130,7 @@ interface VaultAPI is IERC20 {
      */
     function guardian() external view returns (address);
 }
+
 
 /**
  * This interface is here for the keeper bot to use.

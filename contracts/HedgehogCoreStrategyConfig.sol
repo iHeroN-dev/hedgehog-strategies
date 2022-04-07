@@ -2,7 +2,7 @@
 
 pragma solidity 0.6.12;
 
-struct CoreStrategyConfig {
+struct HedgehogCoreStrategyConfig {
     // A portion of want token is depoisited into a lending platform to be used as
     // collateral. Short token is borrowed and compined with the remaining want token
     // and deposited into LP and farmed.

@@ -4,7 +4,7 @@ pragma solidity 0.6.12;
 
 import "./BaseStrategy.sol";
 import "./HedgehogCoreStrategyConfig.sol";
-import "./IFarmMasterChef.sol";
+import "./Interfaces.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 abstract contract CoreStrategy is BaseStrategy {
