@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.6.12;
-
+pragma experimental ABIEncoderV2;
 import "./BaseStrategy.sol";
 import "./HedgehogCoreStrategyConfig.sol";
 import "./Interfaces.sol";
@@ -40,6 +40,8 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     IERC20 public shortEquivalent;
     IUniswapV2Pair farmingLP; // wantEquivalent-shortEquivalent pool
     IERC20 farmTokenLP; //LP to swap farm token -> want
+    IUniswapV2Pair wantWantEquivalentLP;
+    IUniswapV2Pair shortShortEquivalentLP;
     IERC20 farmToken;
     IERC20 compToken;
 
@@ -387,7 +389,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         }
 
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getLpPrice();
+        uint256 lpPrice = getFarmingLpPrice();
         uint256 borrow =
             collatTarget.mul(_amount).mul(1e18).div(
                 BASIS_PRECISION.mul(
@@ -405,11 +407,11 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     // hh -> this functions should return a price similar to the oracle one. 
     // otherwise it means that the "equivalent" tokens are not correctly pegged
-    function getLpPrice() public view returns (uint256) {
-        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
-        return wantInLp.mul(1e18).div(shortInLp);
+    function getFarmingLpPrice() public view returns (uint256) {
+        (uint256 wantEquivalentInLp, uint256 shortEquivalentInLp) = _getFarmingLpReserves();
+        return wantEquivalentInLp.mul(1e18).div(shortEquivalentInLp);
     }
-\
+
     /**
      * @notice
      *  Reverts if the difference in the price sources are >  priceSourceDiff
@@ -417,7 +419,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     function _testPriceSource() internal returns (bool) {
         if (doPriceCheck) {
             uint256 oPrice = oracle.getPrice();
-            uint256 lpPrice = getLpPrice();
+            uint256 lpPrice = getFarmingLpPrice();
             uint256 priceSourceRatio = oPrice.mul(BASIS_PRECISION).div(lpPrice);
             return (priceSourceRatio > BASIS_PRECISION.sub(priceSourceDiff) &&
                 priceSourceRatio < BASIS_PRECISION.add(priceSourceDiff));
@@ -452,7 +454,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         returns (uint256 _lendNeeded, uint256 _borrow)
     {
         uint256 oPrice = oracle.getPrice();
-        uint256 lpPrice = getLpPrice();
+        uint256 lpPrice = getFarmingLpPrice();
         uint256 Si2 = balanceShort().mul(2);
         uint256 Di = balanceDebtInShort();
         uint256 CrPlp = collatTarget.mul(lpPrice);
@@ -680,8 +682,22 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         return balanceDebtOracle().mul(BASIS_PRECISION).div(balanceLend());
     }
 
-    function getFarmingLpReserves()
-        public
+    function _getReservesGeneric(IUniswapV2Pair lp, address _firstToken) 
+        internal
+        view
+        returns (uint256 _firstTokenInLp, uint256 _secondTokenInLp) 
+    {
+        (uint112 reserves0, uint112 reserves1, ) = lp.getReserves();
+        if (farmingLP.token0() == address(_firstToken)) {
+            _firstTokenInLp = uint256(reserves0);
+            _secondTokenInLp = uint256(reserves1);
+        } else {
+            _firstTokenInLp = uint256(reserves1);
+            _secondTokenInLp = uint256(reserves0);
+        }
+    }
+    function _getFarmingLpReserves()
+        internal
         view
         returns (uint256 _wantEquivalentInLp, uint256 _shortEquivalentInLp)
     {
@@ -700,7 +716,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = _getFarmingLpReserves();
         return (_amountShort.mul(wantInLp).div(shortInLp));
     }
 
@@ -717,8 +733,44 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = getFarmingLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = _getFarmingLpReserves();
         return _amountWant.mul(shortInLp).div(wantInLp);
+    }
+
+    function _convertWantToWantEquivalent(uint256 _amountWant)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 wantInLp, uint256 wantEquivalentInLp) = _getReservesGeneric(wantWantEquivalentLP, address(want));
+        return _amountWant.mul(wantEquivalentInLp).div(wantInLp);
+    }
+
+    function _convertWantEquivalentToWant(uint256 _amountWantEquivalent)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 wantEquivalentInLp, uint256 wantInLp) = _getReservesGeneric(wantWantEquivalentLP, address(wantEquivalent));
+        return _amountWantEquivalent.mul(wantInLp).div(wantEquivalentInLp);
+    }
+
+    function _convertShortToShortEquivalent(uint256 _amountShort)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 shortInLp, uint256 shortEquivalentInLp) = _getReservesGeneric(shortShortEquivalentLP, address(short));
+        return _amountShort.mul(shortEquivalentInLp).div(shortInLp);
+    }
+
+    function _convertShortEquivalentToShort(uint256 _amountShortEquivalent)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 shortEquivalentInLp, uint256 shortInLp) = _getReservesGeneric(shortShortEquivalentLP, address(shortEquivalent));
+        return _amountShortEquivalent.mul(shortInLp).div(shortEquivalentInLp);
     }
 
     function balanceLpInShort() public view returns (uint256) {
@@ -727,7 +779,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
 
     /// get value of all LP in want currency
     function balanceLp() public view returns (uint256) {
-        (uint256 wantInLp, ) = getFarmingLpReserves();
+        (uint256 wantInLp, ) = _getFarmingLpReserves();
         return
             balanceLpInShort().mul(wantInLp).mul(2).div(
                 farmingLP.totalSupply()
@@ -764,7 +816,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             );
         uint256 harvestLP_A = _getHarvestInHarvestLp();
         uint256 shortLP_A = _getShortInHarvestLp();
-        (uint256 wantLP_B, uint256 shortLP_B) = getFarmingLpReserves();
+        (uint256 wantLP_B, uint256 shortLP_B) = _getFarmingLpReserves();
 
         uint256 balShort = rewardsPending.mul(shortLP_A).div(harvestLP_A);
         uint256 balRewards = balShort.mul(wantLP_B).div(shortLP_B);
@@ -957,7 +1009,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     // all LP currently not in Farm is removed.
     function _removeAllLp() internal {
         uint256 _amount = farmingLP.balanceOf(address(this));
-        (uint256 wantLP, uint256 shortLP) = getFarmingLpReserves();
+        (uint256 wantLP, uint256 shortLP) = _getFarmingLpReserves();
         uint256 lpIssued = farmingLP.totalSupply();
 
         uint256 amountAMin =
@@ -1084,12 +1136,66 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         returns (uint256 _slippage) 
     {
         _testPriceSource();
-        uint256 _amountInTheory = convertWantToWantEquivalent(_amount);
+        uint256 _amountInTheory =_convertWantToWantEquivalent(_amount);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
                 _amount.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(short), address(want)),
+                getTokenOutPath(address(want), address(wantEquivalent)),
+                address(this),
+                now
+            );
+        _slippage = _amountInTheory.sub(amounts[amounts.length - 1]);
+    
+    }
+
+    function _swapWantEquivalentToWant(uint256 _amount) 
+        internal
+        returns (uint256 _slippage) 
+    {
+        _testPriceSource();
+        uint256 _amountInTheory = _convertWantEquivalentToWant(_amount);
+        uint256[] memory amounts =
+            router.swapExactTokensForTokens(
+                _amount,
+                _amount.mul(slippageAdj).div(BASIS_PRECISION),
+                getTokenOutPath(address(wantEquivalent), address(want)),
+                address(this),
+                now
+            );
+        _slippage = _amountInTheory.sub(amounts[amounts.length - 1]);
+    
+    }
+
+    function _swapShortToShortEquivalent(uint256 _amount) 
+        internal
+        returns (uint256 _slippage) 
+    {
+        _testPriceSource();
+        uint256 _amountInTheory = _convertShortToShortEquivalent(_amount);
+        uint256[] memory amounts =
+            router.swapExactTokensForTokens(
+                _amount,
+                _amount.mul(slippageAdj).div(BASIS_PRECISION),
+                getTokenOutPath(address(short), address(shortEquivalent)),
+                address(this),
+                now
+            );
+        _slippage = _amountInTheory.sub(amounts[amounts.length - 1]);
+    
+    }
+
+    function _swapShortEquivalentToShort(uint256 _amount) 
+        internal
+        returns (uint256 _slippage) 
+    {
+        _testPriceSource();
+        uint256 _amountInTheory = _convertShortEquivalentToShort(_amount);
+        uint256[] memory amounts =
+            router.swapExactTokensForTokens(
+                _amount,
+                _amount.mul(slippageAdj).div(BASIS_PRECISION),
+                getTokenOutPath(address(shortEquivalent), address(short)),
                 address(this),
                 now
             );
