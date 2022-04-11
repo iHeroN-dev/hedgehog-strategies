@@ -45,4 +45,5 @@ struct HedgehogCoreStrategyConfig {
     // AMM as the farm, in fact the most liquid AMM is prefered to
     // minimise slippage.
     address router;
+    uint256 minDeploy;
 }

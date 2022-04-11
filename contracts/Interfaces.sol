@@ -223,6 +223,9 @@ interface IStrategyInsurance {
     function reportLoss(uint256 _totalDebt, uint256 _loss)
         external
         returns (uint256 _compensation);
+
+        
+    function migrateInsurance(address newInsurance) external;
 }
 
 // Part: IUniswapV2Pair

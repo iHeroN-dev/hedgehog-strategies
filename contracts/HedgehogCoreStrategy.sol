@@ -8,7 +8,7 @@ import "./Interfaces.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
-abstract contract HedgeHogCoreStrategy is BaseStrategy {
+abstract contract HedgehogCoreStrategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
 
@@ -175,7 +175,6 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
     function ethToWant(uint256 _amtInWei)
         public
         view
-        virtual
         override
         returns (uint256)
     {
@@ -377,7 +376,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
             uint256 borrowAmt = _borrowWantEq(adjAmount);
             _redeemWant(adjAmount);
             _addToLP(borrowAmt);
-            _depositFarm();
+            _depositAllLpInFarm();
             emit CollatRebalance(collatRatio, adjAmount);
         }
     }
@@ -402,7 +401,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _lendWant(lendNeeded);
         _borrow(borrow);
         _addToLP(borrow);
-        _depositFarm();
+        _depositAllLpInFarm();
     }
 
     // hh -> this functions should return a price similar to the oracle one. 
@@ -486,7 +485,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _redeemWant(balanceLend().sub(_lendNeeded));
         _borrow(_borrowAmt);
         _addToLP(balanceShort());
-        _depositFarm();
+        _depositAllLpInFarm();
     }
 
 
@@ -538,7 +537,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         }
 
         // Finnally withdraw the LP from farms and remove from pool
-        _withdrawSomeLp(lpWithdraw);
+        _withdrawAmountFromFarm(lpWithdraw);
         _removeAllLp();
     }
 
@@ -921,7 +920,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         } else {
             lpWithdraw = lpPooled;
         }
-        _withdrawSomeLp(lpWithdraw);
+        _withdrawAmountFromFarm(lpWithdraw);
         _removeAllLp();
         swapAmountWant = Math.min(
             _amount.div(2),
@@ -944,7 +943,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         } else {
             lpWithdraw = lpPooled;
         }
-        _withdrawSomeLp(lpWithdraw);
+        _withdrawAmountFromFarm(lpWithdraw);
         _removeAllLp();
         uint256 wantBal = balanceOfWant();
         if (_amount.div(2) <= wantBal) {
@@ -987,7 +986,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         _swapShortEquivalentToShort(balanceShortEquivalent());
     }
 
-    function _depositFarm() internal virtual {
+    function _depositAllLpInFarm() internal virtual {
         uint256 lpBalance = farmingLP.balanceOf(address(this)); /// get number of LP tokens
         farm.deposit(farmPid, lpBalance); /// deposit LP tokens to farm
     }
@@ -996,7 +995,7 @@ abstract contract HedgeHogCoreStrategy is BaseStrategy {
         farm.withdraw(farmPid, _amount);
     }
 
-    function _withdrawSomeLp(uint256 _amount) internal {
+    function _withdrawAmountFromFarm(uint256 _amount) internal {
         require(_amount <= countLpPooled());
         _withdrawFarm(_amount);
     }

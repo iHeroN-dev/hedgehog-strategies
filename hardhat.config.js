@@ -93,7 +93,7 @@ task("updateVaultSettings", "Change settings of a vault, used once to setup the 
  */
 module.exports = {
   solidity: {
-    compilers: [{ version: "0.6.12" }, { version: "0.8.4" }, { version: "0.8.2" }],
+    compilers: [{ version: "0.6.12" }, { version: "0.8.2"}],
   },
   vyper: {
     compilers: [{ version: "0.2.1" }, { version: "0.3.1" }],
