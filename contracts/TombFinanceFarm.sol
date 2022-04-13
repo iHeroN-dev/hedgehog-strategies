@@ -3,7 +3,7 @@
 pragma solidity 0.6.12;
 
 interface TombFinanceFarm {
-    function pendingTshare(uint256 _pid, address _user)
+    function pendingShare(uint256 _pid, address _user)
         external
         view
         returns (uint256);

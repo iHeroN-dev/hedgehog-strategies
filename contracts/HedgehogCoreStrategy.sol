@@ -183,6 +183,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         return 0;
     }
 
+    //#HHTODO Sometimes this is ok, but sometimes we might want to use a direct swap where we know that there is the most liquidity (tomb-based for example). 
     function getTokenOutPath(address _token_in, address _token_out)
         internal
         view
@@ -200,6 +201,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         }
     }
 
+    // #HHTODO check
+
     function approveContracts() internal {
         want.safeApprove(address(cTokenLend), uint256(-1));
         short.safeApprove(address(cTokenBorrow), uint256(-1));
@@ -209,8 +212,22 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         shortEquivalent.safeApprove(address(router), uint256(-1));
         farmToken.safeApprove(address(router), uint256(-1));
         compToken.safeApprove(address(router), uint256(-1));
-        IERC20(address(farmingLP)).safeApprove(address(router), uint256(-1));
+        IERC20(address(farmingLP)).safeApprove(address(farmRouter), uint256(-1));
         IERC20(address(farmingLP)).safeApprove(address(farm), uint256(-1));
+    }
+
+    // #HHTODO check 
+    function resetApprovals() external onlyEmergencyAuthorized{
+        want.safeApprove(address(cTokenLend), uint256(0));
+        short.safeApprove(address(cTokenBorrow), uint256(0));
+        want.safeApprove(address(router), uint256(0));
+        short.safeApprove(address(router), uint256(0));
+        wantEquivalent.safeApprove(address(router), uint256(0));
+        shortEquivalent.safeApprove(address(router), uint256(0));
+        farmToken.safeApprove(address(router), uint256(0));
+        compToken.safeApprove(address(router), uint256(0));
+        IERC20(address(farmingLP)).safeApprove(address(farmRouter), uint256(0));
+        IERC20(address(farmingLP)).safeApprove(address(farm), uint256(0));
     }
 
     function setSlippageConfig(
@@ -222,7 +239,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         priceSourceDiff = _priceSourceDif;
         doPriceCheck = _doPriceCheck;
     }
-    //TODO INSURANCE? address 0?
+    //TODO INSURANCE? address 0? TODO Research:  It will revert if the insurance address is not 0? What?
     function setInsurance(address _insurance) external onlyAuthorized {
         require(address(insurance) == address(0));
         insurance = IStrategyInsurance(_insurance);
@@ -400,6 +417,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
 
         _lendWant(lendNeeded);
         _borrow(borrow);
+        // HHTODO #HHTODO add _swapWantToWantEquivalent() after _borrowWantEq
+        // #HHTODO add _swapShortToShortEquivalent() after _swapShortToShortEquivalent()
         _addToLP(borrow);
         _depositAllLpInFarm();
     }
@@ -415,7 +434,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
      * @notice
      *  Reverts if the difference in the price sources are >  priceSourceDiff
      */
-    function _testPriceSource() internal returns (bool) {
+     // HHTODO also check equivalents!!!
+    function _testPriceSource() internal view returns (bool) {
         if (doPriceCheck) {
             uint256 oPrice = oracle.getPrice();
             uint256 lpPrice = getFarmingLpPrice();
@@ -449,7 +469,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
      *  B = (TCr - Cr*Plp(2Si-Di)) / (Po + Cr*Plp)
      */
     function _calcDeployment(uint256 _amount)
-        internal
+        internal 
+        view
         returns (uint256 _lendNeeded, uint256 _borrow)
     {
         uint256 oPrice = oracle.getPrice();
@@ -480,6 +501,9 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         );
     }
 
+    // #HHTODO add _swapWantEquivalentToWant() after _redeemWant
+    // #HHTODO add _swapWantToWantEquivalent() after _borrowWantEq()
+    // #HHTODO add _swapShortToShortEquivalent() after _swapShortToShortEquivalent()
     function _deployFromLend(uint256 _amount) internal {
         (uint256 _lendNeeded, uint256 _borrowAmt) = _calcDeployment(_amount);
         _redeemWant(balanceLend().sub(_lendNeeded));
@@ -550,7 +574,6 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         override
         returns (uint256 _liquidatedAmount, uint256 _loss)
     {
-        uint256 balanceWant = balanceOfWant();
         uint256 totalAssets = estimatedTotalAssets();
 
         // if estimatedTotalAssets is less than params.debtRatio it means there's
@@ -709,7 +732,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
             _shortEquivalentInLp = uint256(reserves0);
         }
     }
-
+    // TODO needs a refactor
     function convertShortToWantLP(uint256 _amountShort)
         internal
         view
@@ -808,7 +831,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         return convertShortToWantOracle(balanceDebtInShort());
     }
 
-    function balancePendingHarvest() public view virtual returns (uint256) {
+    // HHTODO needs a refactor
+    function balancePendingHarvest() public view returns (uint256) {
         uint256 rewardsPending =
             _farmPendingRewards(farmPid, address(this)).add(
                 farmToken.balanceOf(address(this))
@@ -821,7 +845,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         uint256 balRewards = balShort.mul(wantLP_B).div(shortLP_B);
         return (balRewards);
     }
-
+    // HHTODO Check all these balances
     // reserves
     function balanceOfWant() public view returns (uint256) {
         return (want.balanceOf(address(this)));
@@ -838,7 +862,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     function balanceShortEquivalent() public view returns (uint256) {
         return (shortEquivalent.balanceOf(address(this)));
     }
-
+    // HHTODO This needs a refactor
     function balanceShortWantEq() public view returns (uint256) {
         return (convertShortToWantLP(short.balanceOf(address(this))));
     }
@@ -865,7 +889,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         cTokenLend.mint(amount);
     }
 
-    // borrow tokens woth _amount of want tokens
+    // borrow tokens worth _amount of want tokens
     function _borrowWantEq(uint256 _amount)
         internal
         returns (uint256 _borrowamount)
@@ -891,11 +915,13 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         }
     }
 
+    // HHTODO check that it is correct to use "farmTokenLP"
     function _getHarvestInHarvestLp() internal view returns (uint256) {
         uint256 harvest_lp = farmToken.balanceOf(address(farmTokenLP));
         return harvest_lp;
     }
 
+    // HHTODO check that it is correct to use "farmTokenLP"
     function _getShortInHarvestLp() internal view returns (uint256) {
         uint256 shortToken_lp = short.balanceOf(address(farmTokenLP));
         return shortToken_lp;
@@ -904,7 +930,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     function _redeemWant(uint256 _redeem_amount) internal {
         cTokenLend.redeemUnderlying(_redeem_amount);
     }
-
+    // HHTODO remove? not used anywhere, and it is identical to _withdrawLpRebalanceCollateral
     // withdraws some LP worth _amount, converts all withdrawn LP to short token to repay debt
     function _withdrawLpRebalance(uint256 _amount)
         internal
@@ -945,6 +971,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         }
         _withdrawAmountFromFarm(lpWithdraw);
         _removeAllLp();
+        // HHTODO improve using Math.min()
         uint256 wantBal = balanceOfWant();
         if (_amount.div(2) <= wantBal) {
             _lendWant(_amount.div(2));
@@ -954,6 +981,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         _repayDebt();
     }
 
+    // HHTODO 2* amountshort or only amountShort?
     function _addToLP(uint256 _amountShort) internal {
         uint256 _amountWant = Math.min(convertShortToWantLP(_amountShort), want.balanceOf(address(this)));
 
@@ -1217,3 +1245,16 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         returns (address[] memory)
     {}
 }
+
+
+
+
+
+
+
+
+
+
+// TODO check price only once in a transaction?
+// TODO enable emergency mode -> disable price check
+

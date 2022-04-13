@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.6.12;
+pragma experimental ABIEncoderV2;
 
 import "./HedgehogCoreStrategy.sol";
 import "./TombFinanceFarm.sol";
@@ -44,7 +45,7 @@ contract MAITOMBTshareStrategy is HedgehogCoreStrategy {
         override
         returns (uint256)
     {
-        return TombFinanceFarm(address(farm)).pendingTshare(_pid, _user);
+        return TombFinanceFarm(address(farm)).pendingShare(_pid, _user);
     }
 
     function _depositAllLpInFarm() internal override {
