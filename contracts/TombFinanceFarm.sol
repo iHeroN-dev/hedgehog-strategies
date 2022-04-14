@@ -21,5 +21,5 @@ interface TombFinanceFarm {
     function userInfo(uint256 _pid, address user)
         external
         view
-        returns (uint256, int256);
+        returns (uint256 _amount, int256 _rewardDebt);
 }

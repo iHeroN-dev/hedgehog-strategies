@@ -898,9 +898,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     function balanceShortEquivalent() public view returns (uint256) {
         return (shortEquivalent.balanceOf(address(this)));
     }
-    // HHTODO This needs a refactor
     function balanceShortWantEq() public view returns (uint256) {
-        return (convertShortToWantLP(short.balanceOf(address(this))));
+        return convertShortToWantOracle(balanceShort());
     }
 
     function balanceLend() public view returns (uint256) {
@@ -917,7 +916,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     }
 
     function countLpPooled() internal view virtual returns (uint256) {
-        return farm.userInfo(farmPid, address(this)).amount;
+        return farm.userInfo(farmPid, address(this))._amount;
     }
 
     // lend want tokens to lending platform
