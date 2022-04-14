@@ -183,7 +183,6 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         return 0;
     }
 
-    //#HHTODO Sometimes this is ok, but sometimes we might want to use a direct swap where we know that there is the most liquidity (tomb-based for example). 
     function getTokenOutPath(address _token_in, address _token_out)
         internal
         view
@@ -1164,11 +1163,14 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     {
         _testPriceSource();
         uint256 _amountInTheory =_convertWantToWantEquivalent(_amount);
+        address[] memory _path = new address[](2);
+        _path[0] = address(want);
+        _path[1] = address(wantEquivalent);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
                 _amount.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(want), address(wantEquivalent)),
+                _path,
                 address(this),
                 now
             );
@@ -1182,11 +1184,14 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     {
         _testPriceSource();
         uint256 _amountInTheory = _convertWantEquivalentToWant(_amount);
+        address[] memory _path = new address[](2);
+        _path[0] = address(wantEquivalent);
+        _path[1] = address(want);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
                 _amount.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(wantEquivalent), address(want)),
+                _path,
                 address(this),
                 now
             );
@@ -1200,11 +1205,14 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     {
         _testPriceSource();
         uint256 _amountInTheory = _convertShortToShortEquivalent(_amount);
+        address[] memory _path = new address[](2);
+        _path[0] = address(short);
+        _path[1] = address(shortEquivalent);
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
                 _amount.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(short), address(shortEquivalent)),
+                _path,
                 address(this),
                 now
             );
@@ -1218,11 +1226,15 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     {
         _testPriceSource();
         uint256 _amountInTheory = _convertShortEquivalentToShort(_amount);
+        address[] memory _path = new address[](2);
+        _path[0] = address(shortEquivalent);
+        _path[1] = address(short);
+        
         uint256[] memory amounts =
             router.swapExactTokensForTokens(
                 _amount,
                 _amount.mul(slippageAdj).div(BASIS_PRECISION),
-                getTokenOutPath(address(shortEquivalent), address(short)),
+                _path,
                 address(this),
                 now
             );
