@@ -199,9 +199,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
             _path[2] = _token_out;
         }
     }
-
-    // #HHTODO check
-
+    
     function approveContracts() internal {
         want.safeApprove(address(cTokenLend), uint256(-1));
         short.safeApprove(address(cTokenBorrow), uint256(-1));
@@ -211,11 +209,12 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         shortEquivalent.safeApprove(address(router), uint256(-1));
         farmToken.safeApprove(address(router), uint256(-1));
         compToken.safeApprove(address(router), uint256(-1));
+        wantEquivalent.safeApprove(address(farmRouter), uint256(-1));
+        shortEquivalent.safeApprove(address(farmRouter), uint256(-1));
         IERC20(address(farmingLP)).safeApprove(address(farmRouter), uint256(-1));
         IERC20(address(farmingLP)).safeApprove(address(farm), uint256(-1));
     }
 
-    // #HHTODO check 
     function resetApprovals() external onlyEmergencyAuthorized{
         want.safeApprove(address(cTokenLend), uint256(0));
         short.safeApprove(address(cTokenBorrow), uint256(0));
@@ -225,6 +224,8 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         shortEquivalent.safeApprove(address(router), uint256(0));
         farmToken.safeApprove(address(router), uint256(0));
         compToken.safeApprove(address(router), uint256(0));
+        wantEquivalent.safeApprove(address(farmRouter), uint256(0));
+        shortEquivalent.safeApprove(address(farmRouter), uint256(0));
         IERC20(address(farmingLP)).safeApprove(address(farmRouter), uint256(0));
         IERC20(address(farmingLP)).safeApprove(address(farm), uint256(0));
     }
