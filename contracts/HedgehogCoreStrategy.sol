@@ -916,7 +916,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     }
 
     function countLpPooled() internal view virtual returns (uint256) {
-        return farm.userInfo(farmPid, address(this))._amount;
+        return farm.userInfo(farmPid, address(this)).amount;
     }
 
     // lend want tokens to lending platform
