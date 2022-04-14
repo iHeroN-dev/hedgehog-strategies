@@ -39,7 +39,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     IERC20 public wantEquivalent;
     IERC20 public shortEquivalent;
     IUniswapV2Pair farmingLP; // wantEquivalent-shortEquivalent pool
-    IERC20 farmTokenLP; //LP to swap farm token -> want
+    IERC20 farmTokenLP; //LP to swap farmtoken -> short
     IUniswapV2Pair wantWantEquivalentLP;
     IUniswapV2Pair shortShortEquivalentLP;
     IERC20 farmToken;
@@ -914,13 +914,11 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         }
     }
 
-    // HHTODO check that it is correct to use "farmTokenLP"
     function _getHarvestInHarvestLp() internal view returns (uint256) {
         uint256 harvest_lp = farmToken.balanceOf(address(farmTokenLP));
         return harvest_lp;
     }
 
-    // HHTODO check that it is correct to use "farmTokenLP"
     function _getShortInHarvestLp() internal view returns (uint256) {
         uint256 shortToken_lp = short.balanceOf(address(farmTokenLP));
         return shortToken_lp;
