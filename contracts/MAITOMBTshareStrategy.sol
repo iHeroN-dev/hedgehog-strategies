@@ -14,8 +14,9 @@ contract MAITOMBTshareStrategy is HedgehogCoreStrategy {
                 0xfB98B335551a418cD0737375a2ea0ded62Ea213b, // want
                 0x6c021Ae822BEa943b2E66552bDe1D2696a53fbB7, // short
                 0xfB98B335551a418cD0737375a2ea0ded62Ea213b, // wantEquivalent -> MAI
-                0x6c021Ae822BEa943b2E66552bDe1D2696a53fbB7, //shortEquivalent -> tomb
+                0x6c021Ae822BEa943b2E66552bDe1D2696a53fbB7, // shortEquivalent -> tomb
                 0x45f4682B560d4e3B8FF1F1b3A38FDBe775C7177b, // farmingLP -> MAI/TOMB
+                0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c, // wantShortLP -> WFTM/USDC
                 0x4cdF39285D7Ca8eB3f090fDA0C069ba5F4145B37, // farmToken -> Tshare
                 0x4733bc45eF91cF7CcEcaeeDb794727075fB209F2, // farmTokenLp -> TSHARE/WFTM
                 0xcc0a87F7e7c693042a9Cc703661F5060c80ACb43, // farmMasterChef

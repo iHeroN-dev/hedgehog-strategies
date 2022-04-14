@@ -13,8 +13,10 @@ struct HedgehogCoreStrategyConfig {
     /*****************************/
     /*             Farm           */
     /*****************************/
-    // Liquidity pool address for base <-> short tokens
+    // Liquidity pool address for wantEquivalent <-> shortEquivalent tokens
     address farmingLP;
+    // Liquidity pool addres for base <-> short tokens
+    address wantShortLP;
     // Address for farming reward token - eg Spirit/BOO
     address farmToken;
     // Liquidity pool address for farmToken <-> wFTM
