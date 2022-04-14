@@ -434,7 +434,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     // hh -> this functions should return a price similar to the oracle one. 
     // otherwise it means that the "equivalent" tokens are not correctly pegged
     function getFarmingLpPrice() public view returns (uint256) {
-        (uint256 wantEquivalentInLp, uint256 shortEquivalentInLp) = _getFarmingLpReserves();
+        (uint256 wantEquivalentInLp, uint256 shortEquivalentInLp) = _getReservesGeneric(farmingLP, address(wantEquivalent));
         return wantEquivalentInLp.mul(1e18).div(shortEquivalentInLp);
     }
 
@@ -759,20 +759,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
             _secondTokenInLp = uint256(reserves0);
         }
     }
-    function _getFarmingLpReserves()
-        internal
-        view
-        returns (uint256 _wantEquivalentInLp, uint256 _shortEquivalentInLp)
-    {
-        (uint112 reserves0, uint112 reserves1, ) = farmingLP.getReserves();
-        if (farmingLP.token0() == address(wantEquivalent)) {
-            _wantEquivalentInLp = uint256(reserves0);
-            _shortEquivalentInLp = uint256(reserves1);
-        } else {
-            _wantEquivalentInLp = uint256(reserves1);
-            _shortEquivalentInLp = uint256(reserves0);
-        }
-    }
+
     function convertShortToWantLP(uint256 _amountShort)
         internal
         view
@@ -795,7 +782,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         view
         returns (uint256)
     {
-        (uint256 wantInLp, uint256 shortInLp) = _getFarmingLpReserves();
+        (uint256 wantInLp, uint256 shortInLp) = _getReservesGeneric(farmingLP, address(wantEquivalent));
         return _amountWant.mul(shortInLp).div(wantInLp);
     }
 
@@ -841,7 +828,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
 
     /// get value of all LP in want currency
     function balanceLp() public view returns (uint256) {
-        (uint256 wantInLp, ) = _getFarmingLpReserves();
+        (uint256 wantInLp, ) = _getReservesGeneric(farmingLP, address(wantEquivalent));
         return
             balanceLpInShort().mul(wantInLp).mul(2).div(
                 farmingLP.totalSupply()
@@ -1058,7 +1045,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     // all LP currently not in Farm is removed.
     function _removeAllLp() internal {
         uint256 _amount = farmingLP.balanceOf(address(this));
-        (uint256 wantLP, uint256 shortLP) = _getFarmingLpReserves();
+        (uint256 wantLP, uint256 shortLP) = _getReservesGeneric(farmingLP, address(wantEquivalent));
         uint256 lpIssued = farmingLP.totalSupply();
 
         uint256 amountAMin =
@@ -1161,7 +1148,6 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
     }
 
 
-    //TODO add router and LP for this
     function _swapWantShortExact(uint256 _amountOut)
         internal
         returns (uint256 _slippageWant)
