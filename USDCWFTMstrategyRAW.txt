@@ -2974,17 +2974,17 @@
 //         doPriceCheck = _doPriceCheck;
 //     }
 
-//     function setInsurance(address _insurance) external onlyAuthorized {
-//         require(address(insurance) == address(0));
-//         insurance = IStrategyInsurance(_insurance);
-//     }
+    function setInsurance(address _insurance) external onlyAuthorized {
+        require(address(insurance) == address(0));
+        insurance = IStrategyInsurance(_insurance);
+    }
 
-//     function migrateInsurance(address _newInsurance) external onlyGovernance {
-//         require(address(_newInsurance) == address(0));
-//         insurance.migrateInsurance(_newInsurance);
-//         insurance = IStrategyInsurance(_newInsurance);
-//     }
-
+    function migrateInsurance(address _newInsurance) external onlyGovernance {
+        require(address(_newInsurance) == address(0));
+        insurance.migrateInsurance(_newInsurance);
+        insurance = IStrategyInsurance(_newInsurance);
+    }
+d
 //     function setDebtThresholds(
 //         uint256 _lower,
 //         uint256 _upper,

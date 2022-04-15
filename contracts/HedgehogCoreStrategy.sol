@@ -245,7 +245,7 @@ abstract contract HedgehogCoreStrategy is BaseStrategy {
         priceSourceDiff = _priceSourceDif;
         doPriceCheck = _doPriceCheck;
     }
-    //TODO INSURANCE? address 0? TODO Research:  It will revert if the insurance address is not 0? What?
+    
     function setInsurance(address _insurance) external onlyAuthorized {
         require(address(insurance) == address(0));
         insurance = IStrategyInsurance(_insurance);
